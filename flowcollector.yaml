@@ -1,0 +1,55 @@
+
+apiVersion: flows.netobserv.io/v1beta2
+kind: FlowCollector
+metadata:
+  name: cluster
+spec:
+  # Namespace where Network Observability components run
+  namespace: netobserv
+
+  # Standard deployment: agents on nodes and a shared processor
+  deploymentModel: Service
+
+  # Enable Network Observability-managed network policies
+  networkPolicy:
+    enable: true
+
+  # Collect network flows using eBPF
+  agent:
+    type: eBPF
+    ebpf:
+      # Sample approximately 1 packet out of every 50
+      sampling: 50
+
+      # Keep least-privilege default; enable only when required
+      privileged: false
+
+      # Start with no optional high-cost tracking features
+      features: []
+
+  # Enrich and process collected network flows
+  processor:
+    addZone: false
+
+    # Discover OpenShift network subnets automatically
+    subnetLabels:
+      openShiftAutoDetect: true
+      customLabels: []
+
+    # Initial processor replica count
+    consumerReplicas: 3
+
+  # Persist detailed network flows in Loki
+  loki:
+    enable: true
+    mode: LokiStack
+    lokiStack:
+      name: loki
+      namespace: netobserv-loki
+
+  # Enable OpenShift Console network traffic views
+  consolePlugin:
+    enable: true
+
+  # No external flow exporters configured
+  exporters: []
