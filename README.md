@@ -53,11 +53,6 @@ It is primarily a network-flow observability tool, not a replacement for Prometh
 3. Architecture: how the components work together
 For OpenShift 4.20, the main architecture is a pipeline managed by the FlowCollector custom resource. The documented pipeline uses an eBPF agent, a flow-processing component, and a storage or metrics backend. 
 
-Red Hat Documentation
-+1
-
-
-
 1. OpenShift workloads and nodes
 
 Pods · Services · Nodes · Network interfaces
@@ -89,30 +84,11 @@ Topology · Traffic flows · Overview and charts
 These are the logical stages; not every installation uses both Loki and Prometheus as flow-data destinations in the same way. Exact components and settings depend on the selected FlowCollector configuration.
 Component-by-component explanation
 
-
-
-
-
-
-
-
-
 1. eBPF agent
 
 It runs as a DaemonSet, meaning the agent runs on the eligible nodes rather than as one central collector. eBPF lets the agent observe supported networking activity in the Linux kernel without requiring you to modify application code.
 
 The agent creates network-flow records and can support additional features such as TCP round-trip-time measurements, DNS tracking, and packet-drop tracking, subject to configuration and support.
-
-
-
-
-
-
-
-
-
-
-
 
 2. Flowlogs-pipeline
 
@@ -120,33 +96,11 @@ This is the processing stage. It receives flow records, enriches them with Kuber
 
 For example, it can associate an IP address with a pod, namespace, or node when the required mapping is available.
 
-
-
-
-
-
-
-
-
-
-
-
 3. Loki — optional flow-log storage
 
 Loki can retain the network-flow records so you can query historical traffic. This is particularly useful when investigating whether a communication pattern changed before an incident.
 
 Loki is not automatically installed simply because you install the Network Observability Operator. It must be deployed and configured when using the Loki integration.
-
-
-
-
-
-
-
-
-
-
-
 
 4. Prometheus — flow metrics
 
@@ -154,30 +108,13 @@ Prometheus stores time-series metrics, such as aggregated bytes, packets, and fl
 
 Metrics provide efficient aggregation, while flow records provide more detailed connection-level context. Prometheus metrics alone do not replace detailed flow-log history.
 
-
-
-
-
-
-
-
-
-
-
-
 5. Console plugin
 
 The plugin integrates the network traffic interface into the OpenShift web console. It presents the collected data in topology, traffic-flow tables, and overview graphs.
 
 If the operator's components are healthy but the console page is missing, investigate the console plugin deployment and its registration separately.
 
-
-
 The architecture and the responsibilities of the main components are documented in the official OpenShift 4.20 guides. 
-
-Red Hat Documentation
-+1
-
 
 
 4. What is eBPF, and why does the operator use it?
@@ -208,12 +145,6 @@ Does it capture every packet?
 Not necessarily. The agent has a configurable sampling interval.
 
 For example, if the sampling interval is 50, the default configuration described in the OpenShift 4.20 documentation samples approximately one packet in 50. A value of 1 means sampling every packet for that sampling mechanism. Higher sampling intervals generally reduce resource consumption but may reduce the detail and accuracy of derived statistics. 
-
-Red Hat Documentation
-+1
-
-
-
 
 Also, network-flow records are not the same as a full packet capture. You should not assume that the operator stores entire packet payloads, HTTP request bodies, or complete application conversations.
 5. What can you observe with the operator?
@@ -256,11 +187,6 @@ Depending on enabled features and platform support, you can use flow information
 
 
 These features and their supported configurations are covered in the OpenShift 4.20 Network Observability documentation. 
-
-Red Hat Documentation
-+1
-
-
 
 6. How is it different from your other observability tools?
 Since you are learning Prometheus, Loki, Tempo, OpenTelemetry, and OpenShift Service Mesh, this distinction is important.
@@ -311,8 +237,6 @@ Before installing, verify:
 - If you want persistent flow-log storage in Loki, a compatible Loki deployment is available. The OpenShift 4.20 installation guide specifies Loki Operator 5.7 or later for the documented integration.
 - You have planned the resource requirements and retention for your expected traffic volume. 
   
-  Red Hat Documentation
-  +1
 Check the cluster:
 oc get clusterversion
 oc get network.config.openshift.io cluster \
@@ -337,10 +261,6 @@ In the OpenShift console:
 6. Complete the installation and verify its status.
 The namespace commonly used in the official examples is netobserv. Your organization may use a different approved namespace. 
 
-Red Hat Documentation
-
-
-
 Step 2 — Understand the FlowCollector custom resource
 The most important resource is FlowCollector.
 
@@ -358,11 +278,6 @@ Important points:
 - It tells the operator how to configure the collection pipeline.
 - You normally create it after installing the operator, using the provided API or the setup wizard.
 You do not create one FlowCollector for every application namespace. A single collector can observe traffic across the cluster, subject to configuration, platform support, and access controls. 
-
-Red Hat Documentation
-+1
-
-
 
 Step 3 — Create the initial configuration
 The simplest recommended starting point is the console's FlowCollector setup wizard. This helps configure the fields appropriate to your selected storage backend.
@@ -403,12 +318,6 @@ spec:
 
 
 Before applying this template: confirm that the installed operator exposes the expected API version and that the fields match the installed version. This is an illustrative baseline, not a universally production-ready sizing recommendation. If your deployment requires packet-drop tracking or other features that need elevated privileges, you must explicitly plan for those requirements. 
-
-Red Hat Documentation
-+1
-
-
-
 
 Verify the installed API before creating the resource:
 oc api-resources | grep -i flowcollector
@@ -451,11 +360,6 @@ spec:
 This is a configuration fragment, not a complete replacement FlowCollector manifest. Merge it into your existing resource and validate it against the installed API. Your LokiStack must exist, be healthy, and be configured for the supported integration.
 
 The important distinction is that enabling Loki integration does not install or configure all of Loki's storage, object-storage credentials, retention, and access controls for you. Those must be addressed separately. 
-
-Red Hat Documentation
-+1
-
-
 
 9. Verify that the pipeline is working
 After applying the configuration, check the operator and its managed components.
@@ -545,3 +449,49 @@ Access control: restrict access to network-flow information. It may reveal workl
 Change management: a FlowCollector change can restart managed components. Apply changes through GitOps with validation and a rollback plan, and monitor the resulting pipeline after each change.
 
 Disconnection and mirroring: for an air-gapped cluster, ensure the operator and required component images are mirrored from the appropriate supported release. Any Loki or other dependency must also have its images and dependencies mirrored. The operator itself does not eliminate the need to manage these dependencies.
+
+
+Network Policies are required to control which components can communicate with the Network Observability components. They are a security boundary, not a mechanism for collecting network flows.
+
+In OpenShift 4.20, Network Observability can automatically create and manage these policies through the Operator. Network policy management is enabled by default in the FlowCollector. 
+
+1. Why do we need them?
+Imagine your netobserv namespace contains the flow-processing pipeline. You don't want every pod in the cluster to be able to connect to its services unnecessarily.
+
+Network Policies can restrict traffic to approved paths, such as:
+- OpenShift Console → Network Observability services
+- Flow-collection components → required processing services
+- Flowlogs pipeline → LokiStack
+- Monitoring components → permitted metrics endpoints
+- Flowlogs pipeline → an external exporter, if configured
+The exact rules depend on the deployment model and enabled integrations.
+2. What happens if we disable them?
+spec:
+  networkPolicy:
+    enable: false
+
+
+This disables the FlowCollector-managed network policies. It does not disable flow collection or automatically open every connection.
+
+If your cluster relies on these policies, disabling them can remove intended traffic restrictions. Conversely, if another policy blocks required communication, flows might not reach Loki or the console may fail to display data.
+3. Do we need to write NetworkPolicy YAML manually?
+Usually, no. For a standard installation, start with the Operator-managed policies.
+spec:
+  namespace: netobserv
+  networkPolicy:
+    enable: true
+
+
+If Loki, Kafka, or an exporter is installed in a separate namespace with its own Network Policies, verify the required connections. You may need to add the destination namespace to additionalNamespaces or configure the destination-side policy accordingly. 
+
+For example, if your exporter is deployed in my-kafka-exporter:
+spec:
+  networkPolicy:
+    enable: true
+    additionalNamespaces:
+      - openshift-console
+      - openshift-monitoring
+      - my-kafka-exporter
+
+
+Keep the default namespaces where required by your setup. This configuration is illustrative; confirm the installed Operator's default values and schema before applying it.
